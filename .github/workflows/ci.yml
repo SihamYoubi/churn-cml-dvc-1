@@ -1,0 +1,52 @@
+name: churn-mlops
+on: [push]
+permissions: write-all
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Set up CML
+        uses: iterative/setup-cml@v2
+
+      - name: Install deps
+        run: |
+          pip install -r requirements.txt
+          pip install dvc
+
+      - name: DVC Pull
+        env:
+          user: ${{ secrets.DAGSHUB_USERNAME }}
+          token: ${{ secrets.DAGSHUB_TOKEN }}
+        run: |
+          dvc remote modify origin --local auth basic
+          dvc remote modify origin --local user $user
+          dvc remote modify origin --local password $token
+          dvc pull || echo "No data yet"
+
+      - name: Train model
+        run: |
+          python script.py
+          dvc add data models
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+          git add data.dvc models.dvc
+          git commit -m "Update artifacts [skip ci]" || echo "Nothing to commit"
+          dvc push
+
+      - name: Publish CML report
+        env:
+          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "## Metrics" > report.md
+          cat metrics.txt >> report.md
+          echo "## Confusion Matrix" >> report.md
+          echo "![](./conf_matrix.png)" >> report.md
+          cml comment create report.md
