@@ -1,0 +1,4 @@
+[core]
+    remote = origin
+['remote "origin"']
+    url = https://dagshub.com/SihamYoubi/churn-cml-dvc-1.dvc
